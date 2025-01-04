@@ -1,0 +1,25 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Docker Compose
+      run: sudo apt-get update && sudo apt-get install -y docker-compose
+
+    - name: Build and run using Docker Compose
+      run: docker-compose up --build -d
+
+    - name: Test API
+      run: |
+        sleep 5  # 等待服务启动
+        curl http://localhost:8000/status | grep "success"
