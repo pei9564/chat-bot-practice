@@ -1,16 +1,20 @@
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from routes import router
+import uvicorn
 
 app = FastAPI()
 
-@app.get("/")
-def read_root():
-    return {"message": "CI/CD is working!"}
+# 註冊全局例外處理器
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={"message": "Something went wrong!", "error": str(exc)}
+    )
 
-@app.get("/status")
-def check_status():
-    return {"status": "success", "detail": "The application is running correctly."}
-
+# 註冊路由
+app.include_router(router.router)
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=7717, reload=True)

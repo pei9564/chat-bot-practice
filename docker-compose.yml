@@ -1,53 +1,43 @@
+name: python-chat
 services:
-  # postgres:
-  #   image: pgvector/pgvector:pg16
-  #   healthcheck:
-  #     test: pg_isready -U $POSTGRES_USER
-  #     start_interval: 1s
-  #     start_period: 5s
-  #     interval: 5s
-  #     retries: 5
-  #   ports:
-  #     - "5433:5432"
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
+  postgres:
+    image: pgvector/pgvector:pg16
+    healthcheck:
+      test: pg_isready -U $POSTGRES_USER
+      start_interval: 1s
+      start_period: 5s
+      interval: 5s
+      retries: 5
+    ports:
+      - "5433:5432"
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
-  # postgres-setup:
-  #   build:   
-  #     context: .
-  #     dockerfile: Dockerfile.migration
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   env_file:
-  #     - .env
-  #   command: ["-path", "/migrations", "-database", "postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:$POSTGRES_PORT/$POSTGRES_DB?sslmode=disable", "up"]
+  embedding-model-setup:
+    build:   
+      context: .
+      dockerfile: Dockerfile.embedding-model
+      args: 
+        EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+        EMBEDDING_CACHE_FOLDER: ${EMBEDDING_CACHE_FOLDER}
+    volumes:
+      - embedding-models:${EMBEDDING_CACHE_FOLDER}
+    env_file:
+      - .env
 
-  # embedding-model-setup:
-  #   build:   
-  #     context: .
-  #     dockerfile: Dockerfile.embedding-model
-  #     args: 
-  #       EMBEDDING_MODEL: ${EMBEDDING_MODEL}
-  #       EMBEDDING_CACHE_FOLDER: ${EMBEDDING_CACHE_FOLDER}
-  #   volumes:
-  #     - embedding-models:${EMBEDDING_CACHE_FOLDER}
-  #   env_file:
-  #     - .env
-
-  # ollama:
-  #   image: ollama/ollama
-  #   container_name: ollama
-  #   volumes:
-  #     - ollama:/root/.ollama
-  #   ports:
-  #     - "11434:11434"
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 8G
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    deploy:
+      resources:
+        limits:
+          memory: 8G
 
   backend:
     container_name: ai-chat-backend
@@ -55,29 +45,26 @@ services:
       context: . 
       dockerfile: Dockerfile.backend
     ports:
-      - "8000:8000" 
+      - "7717:7717" 
     env_file:  # 預設使用 .env.default 讀取環境變數
       - ${ENV_FILE:-.env.default}
     environment:  # 可從 .env.default 設定，並在 GitHub Actions 以 Secrets 覆寫
       - OPENAI_API_KEY=${OPENAI_API_KEY}  
+      - POSTGRES_HOST=postgres
     restart: always
+    depends_on:
+      embedding-model-setup:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+      ollama:
+        condition: service_started
+    volumes:
+      - embedding-models:${EMBEDDING_CACHE_FOLDER}
 
-    # depends_on:
-    #   embedding-model-setup:
-    #     condition: service_completed_successfully
-    #   postgres-setup:
-    #     condition: service_completed_successfully
-    #   ollama:
-    #     condition: service_started
-    # volumes:
-    #   - embedding-models:${EMBEDDING_CACHE_FOLDER}
-    # environment:
-    #   POSTGRES_HOST: "postgres"
-    # command:
-    #   - --reload
 
   # frontend:
-  #   container_name: opengpts-frontend
+  #   container_name: ai-chat-frontend
   #   build:
   #     context: .
   #     dockerfile: Dockerfile.frontend
@@ -87,9 +74,9 @@ services:
   #   ports:
   #     - "5173:5173" 
   #   environment:
-  #     VITE_BACKEND_URL: "http://backend:8000"
+  #     BACKEND_URL: "http://backend:7717"
 
-# volumes:
-#   postgres_data:
-#   ollama: 
-#   embedding-models:
+volumes:
+  postgres_data:
+  ollama: 
+  embedding-models:
